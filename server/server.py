@@ -10,7 +10,7 @@ import random
 #print(hashlib.sha512(b"1234").hexdigest())
 
 HEADER = 64 # Size of a message that will tell us how long will the acctual message be
-PORT = 5070
+PORT = 5061
 FORMAT = 'utf-8'
 
 SERVER = socket.gethostbyname(socket.gethostname()) # Gets ip automaticaly. Also here enter your public ip address to make it work outside home network
@@ -33,39 +33,61 @@ def handle_client(conn, addr):
         token = conn.recv(msg_length).decode(FORMAT) # Recieve data from client
         c.execute("SELECT token FROM accounts WHERE token='{}'".format(token))
         token_search = c.fetchone()
-        print(token_search)
         if token_search == None:
             conn.send("!FALSE_TOKEN".encode(FORMAT))
-            login = True
-            while login:
+            count = 0
+            while count < 3:
                 msg_length = conn.recv(HEADER).decode(FORMAT)
                 if msg_length:
                     msg_length = int(msg_length)
                     try:
-                        username, password = conn.recv(msg_length).decode(FORMAT).split(" ")
-                        c.execute("SELECT password FROM accounts WHERE username='{}'".format(username))
-                        psw = c.fetchone()
-                        password = f"('{password}',)"
-                        print(username, password, psw)
-                        if password == str(psw):
-                            print(True)
-                            while True:
-                                new_token = random.randrange(10000000000000000000000000000000, 99999999999999999999999999999999)
-                                c.execute("SELECT * FROM accounts WHERE token='{}'".format(new_token))
-                                check_token = c.fetchone()
-                                if check_token == None:
-                                    c.execute("UPDATE accounts SET token = '{}' WHERE username='{}'".format(new_token, username))
-                                    conn_to_db.commit()
-                                    conn.send(f"{new_token}".encode(FORMAT))
-                                    break
+                        username, password, log_or_reg = conn.recv(msg_length).decode(FORMAT).split(" ")
+                        if log_or_reg == "1":
+                            c.execute("SELECT password FROM accounts WHERE username='{}'".format(username))
+                            psw = c.fetchone()
+                            password = f"('{password}',)"
+                            print(username, password, psw)
+                            if password == str(psw):
+                                print(True)
+                                while True:
+                                    new_token = random.randrange(10000000000000000000000000000000, 99999999999999999999999999999999)
+                                    c.execute("SELECT * FROM accounts WHERE token='{}'".format(new_token))
+                                    check_token = c.fetchone()
+                                    print(check_token)
+                                    if check_token == None:
+                                        c.execute("UPDATE accounts SET token = '{}' WHERE username='{}'".format(new_token, username))
+                                        conn_to_db.commit()
+                                        conn.send(f"{new_token}".encode(FORMAT))
+                                        break
+                            else:
+                                print(password)
+                                conn.send("!INCORRECT_PASSWORD".encode(FORMAT))
+                                count += 1
                         else:
-                            print(password)
-                            conn.send("!INCORRECT_PASSWORD".encode(FORMAT))
-                            break
+                            c.execute("SELECT username FROM accounts WHERE username='{}'".format(username))
+                            usr = c.fetchone()
+                            print(usr, "ll")
+                            if usr != None:
+                                conn.send("Username already exists!".encode(FORMAT))
+                                count += 1
+                            elif len(username) == 0:
+                                conn.send("Username is too short!".encode(FORMAT))
+                                count += 1
+                            else:
+                                while True:
+                                    new_token = random.randrange(10000000000000000000000000000000, 99999999999999999999999999999999)
+                                    c.execute("SELECT * FROM accounts WHERE token='{}'".format(new_token))
+                                    check_token = c.fetchone()
+                                    if check_token == None:
+                                        c.execute("INSERT INTO accounts VALUES ('{}', '{}', '{}')".format(username, password, new_token))
+                                        conn_to_db.commit()
+                                        conn.send(f"{new_token}".encode(FORMAT))
+                                        break
                     except ValueError:
-                        continue
+                        break
+            else:
+                conn.send(DISCONNECT_MESSAGE.format(FORMAT))
 
-#dodajanje povezav v bazo? ali sprotno povezovanje?
         else:
             conn.send("Connection accepted!".encode(FORMAT))
             connected = True
@@ -77,15 +99,16 @@ def handle_client(conn, addr):
                     print(f"[{addr}] --> {msg}")
                     if msg == DISCONNECT_MESSAGE:
                         connected = False
-                        print(f"Active Connectins --> {threading.active_count() - 1}")
+                        print(f"Active Connectins --> {threading.active_count() - 2}")
                     conn.send("Message received!".encode(FORMAT))
     
     conn.close() # Closes connection
+    conn_to_db.close() # Closes database
 
 
 # Listens to devices that try to connect
 def start():
-    '''
+    #'''
     conn_to_db = sqlite3.connect('server/accounts.db')
     c = conn_to_db.cursor()
 
@@ -95,7 +118,7 @@ def start():
     c.execute("INSERT  INTO accounts VALUES ('TheOperator', 'd404559f602eab6fd602ac7680dacbfaadd13630335e951f097af3900e9de176b6db28512f2e000b9d04fba5133e8b1c6e8df59db3a8ab9d60be4b97cc9e81db', '33813646572154400286170798894071')")
     conn_to_db.commit()
     conn_to_db.close()
-    '''
+    #'''
 
     server.listen()
     print(f"Server is listening on {SERVER}")

@@ -1,8 +1,6 @@
 import socket
 from tkinter import *
 import hashlib
-import os
-import sys
 
 WIDTH = 1920 #window.winfo_screenwidth()
 HEIGHT = 1080 #window.winfo_screenmmheight()s
@@ -11,9 +9,9 @@ CENTER_HEIGHT = HEIGHT / 2
 
 FORMAT = 'utf-8'
 HEADER = 64
-PORT = 5070
+PORT = 5061
 DISCONNECT_MESSAGE = "DISCONNECT_FROM_SERVER"
-SERVER = "1.1.1.1"
+SERVER = "192.168.178.144"
 ADDR = (SERVER, PORT)
 
 
@@ -53,6 +51,7 @@ def login():
     window.title("SafeChat")
     window.geometry('960x540')
     window.resizable(False, False)
+    # Destroy all widgets
     for widgets in window.winfo_children():
         widgets.destroy()
 
@@ -84,7 +83,7 @@ def send_login(username, psw):
     else:
         password = hashlib.sha512(bytes(psw, "utf-8")).hexdigest()
         while True:
-            new_token = send(f"{username} {password}")
+            new_token = send(f"{username} {password} 1")
             if new_token != "!INCORRECT_PASSWORD" and new_token != "!FALSE_TOKEN":
                 file = open("token.txt", "w")
                 file.write(new_token)
@@ -93,7 +92,7 @@ def send_login(username, psw):
                 break
             elif new_token == "!FALSE_TOKEN":
                 window.destroy()
-                main()
+                break
             else: 
                 print(new_token)
                 window.destroy()
@@ -105,7 +104,18 @@ def send_register(username, psw):
         print("Invalid characters!")
     else:
         password = hashlib.sha512(bytes(psw, "utf-8")).hexdigest()
-        send(f"{username} {password}")
+        while True:
+            new_token = send(f"{username} {password} 0")
+            if new_token != "Username already exists!" and new_token != "Username is too short!":
+                file = open("token.txt", "w")
+                file.write(new_token)
+                file.close()
+                window.destroy()
+                main()
+                break
+            else:
+                print(new_token)
+                break
 
 
 def send(msg):
@@ -132,6 +142,7 @@ def main():
             if confirm == "!FALSE_TOKEN":
                 file.close()
                 login()
+                break
             else:
                 file.close()
                 while True:
@@ -147,6 +158,7 @@ def main():
             file = open("token.txt", "x")
             file.close()
             login()
+            break
 
 if __name__ == '__main__':
     main()
