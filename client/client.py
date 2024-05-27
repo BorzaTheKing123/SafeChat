@@ -1,18 +1,26 @@
 import socket
 from tkinter import *
 import hashlib
+import threading
+import sys
 
-WIDTH = 1920 #window.winfo_screenwidth()
-HEIGHT = 1080 #window.winfo_screenmmheight()s
+WIDTH = 1920#window.winfo_screenwidth()
+HEIGHT = 1080#window.winfo_screenmmheight()
 CENTER_WIDTH = WIDTH / 2
 CENTER_HEIGHT = HEIGHT / 2
 
 FORMAT = 'utf-8'
 HEADER = 64
-PORT = 5061
+PORT = 5068
 DISCONNECT_MESSAGE = "DISCONNECT_FROM_SERVER"
-SERVER = "1.1.1.1"
+SERVER = "192.168.178.144"
 ADDR = (SERVER, PORT)
+
+CLIENT = socket.gethostbyname(socket.gethostname()) # Gets ip automaticaly. Also here enter your public ip address to make it work outside home network
+CLIENT_PORT = 5072
+ADDR_CLIENT = (CLIENT, CLIENT_PORT)
+listening = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # We create a socket object --> .AF_INET is one of many different types
+listening.bind(ADDR_CLIENT)
 
 
 def register():
@@ -25,12 +33,13 @@ def register():
     for widgets in window.winfo_children():
         widgets.destroy()
 
-    title_label = Label(window, text="Register", font=("Arial", 30)).place(x = CENTER_WIDTH-500, y = CENTER_HEIGHT-400)
-    username_label = Label(window, text="Username", font=("Arial", 20)).place(x = CENTER_WIDTH-750, y = CENTER_HEIGHT-300)
-    user_password = Label(window, text = "Password", font=("Arial", 20)).place(x = CENTER_WIDTH-750, y = CENTER_HEIGHT-250)
-    register_label = Label(window, text = "Already have an account?", font=("Arial", 16)).place(x = CENTER_WIDTH-600, y = CENTER_HEIGHT-200)
+    Label(window, text="Register", font=("Arial", 30)).place(x=CENTER_WIDTH - 500, y=CENTER_HEIGHT - 400)
+    Label(window, text="Username", font=("Arial", 20)).place(x = CENTER_WIDTH-750, y=CENTER_HEIGHT-300)
+    Label(window, text = "Password", font=("Arial", 20)).place(x=CENTER_WIDTH-750, y=CENTER_HEIGHT-250)
+    Label(window, text="Already have an account?", font=("Arial", 16)).place(x=CENTER_WIDTH - 600,
+                                                                             y=CENTER_HEIGHT - 200)
 
-    username_input_area = Entry(window, width = 30, font=("Arial", 20))
+    username_input_area = Entry(window, width = 30, font=("Arial", 20)).grid(row=0, column=0)
     username_input_area.pack()
     username_input_area.place(x = CENTER_WIDTH-630, y = CENTER_HEIGHT-300)
     password_input_area = Entry(window, width = 30, font=("Arial", 20))
@@ -40,7 +49,8 @@ def register():
     login_button = Button(window, text = "Login", font=("Arial", 16), command=login)
     login_button.pack()
     login_button.place(x = CENTER_WIDTH-400, y = CENTER_HEIGHT-200)
-    register_button = Button(window, text = "Register", font=("Arial", 16), command=lambda : send_register(username_input_area.get(), password_input_area.get()))
+    register_button = Button(window, text = "Register", font=("Arial", 16), command=lambda :
+    (window.destroy(), send_register(username_input_area.get(), password_input_area.get())))
     register_button.pack()
     register_button.place(x = CENTER_WIDTH-750, y = CENTER_HEIGHT-200)
 
@@ -55,10 +65,11 @@ def login():
     for widgets in window.winfo_children():
         widgets.destroy()
 
-    title_label = Label(window, text="Login", font=("Arial", 30)).place(x = CENTER_WIDTH-500, y = CENTER_HEIGHT-400)
-    username_label = Label(window, text="Username", font=("Arial", 20)).place(x = CENTER_WIDTH-750, y = CENTER_HEIGHT-300)
-    user_password = Label(window, text = "Password", font=("Arial", 20)).place(x = CENTER_WIDTH-750, y = CENTER_HEIGHT-250)
-    register_label = Label(window, text = "Don't have an account yet?", font=("Arial", 16)).place(x = CENTER_WIDTH-600, y = CENTER_HEIGHT-200)
+    Label(window, text="Login", font=("Arial", 30)).place(x=CENTER_WIDTH-500, y=CENTER_HEIGHT-400)
+    Label(window, text="Username", font=("Arial", 20)).place(x=CENTER_WIDTH-750, y=CENTER_HEIGHT-300)
+    Label(window, text="Password", font=("Arial", 20)).place(x=CENTER_WIDTH-750, y=CENTER_HEIGHT-250)
+    Label(window, text="Don't have an account yet?", font=("Arial", 16)).place(x=CENTER_WIDTH-600,
+                                                                                 y=CENTER_HEIGHT-200)
 
     username_input_area = Entry(window, width = 30, font=("Arial", 20))
     username_input_area.pack()
@@ -67,7 +78,8 @@ def login():
     password_input_area.pack()
     password_input_area.place(x = CENTER_WIDTH-630, y = CENTER_HEIGHT-250)
 
-    login_button = Button(window, text = "Login", font=("Arial", 16), command=lambda : send_login(username_input_area.get(),  password_input_area.get()))
+    login_button = Button(window, text = "Login", font=("Arial", 16), command=lambda:
+    (window.destroy(), send_login(username_input_area.get(), password_input_area.get())))
     login_button.pack()
     login_button.place(x = CENTER_WIDTH-750, y = CENTER_HEIGHT-200)
     register_button = Button(window, text = "Register", font=("Arial", 16), command = register)
@@ -76,7 +88,8 @@ def login():
 
     window.mainloop()
 
-# Sends user info and recieves new token
+
+# Sends user info and receives new token
 def send_login(username, psw):
     if " " in username or " " in psw:
         print("Invalid characters!")
@@ -88,14 +101,12 @@ def send_login(username, psw):
                 file = open("token.txt", "w")
                 file.write(new_token)
                 file.close()
-                window.destroy()
                 break
             elif new_token == "!FALSE_TOKEN":
-                window.destroy()
                 break
             else: 
                 print(new_token)
-                window.destroy()
+        print("main")
         main()
 
 
@@ -110,12 +121,22 @@ def send_register(username, psw):
                 file = open("token.txt", "w")
                 file.write(new_token)
                 file.close()
-                window.destroy()
                 main()
                 break
             else:
                 print(new_token)
                 break
+
+
+def send_msg(connection_token):
+    try:
+        while True:
+            user = input("Komu pošiljaš sporočilo\n--> ")
+            msg = input("==> ")
+            print(send(f"{user} !==> {msg}"))
+    except KeyboardInterrupt:
+        send(DISCONNECT_MESSAGE)
+        sys.exit()
 
 
 def send(msg):
@@ -125,9 +146,33 @@ def send(msg):
     send_length += b' ' * (HEADER - len(send_length))
     client.send(send_length)
     client.send(message)
-    return client.recv(64).decode(FORMAT)
+    return client.recv(1024).decode(FORMAT)
 
 
+def receive_msg(conn, addr, connection_token):
+    msg_length = conn.recv(HEADER).decode(FORMAT)
+    if msg_length:
+        msg_length = int(msg_length)
+        received = conn.recv(msg_length).decode(FORMAT)
+        con_token, username, msg = received.split(" !==> ")
+        if con_token == connection_token:
+            print(f"{username} --> {msg}")
+            conn.send("Message received!".encode(FORMAT))
+        else:
+            print(con_token, connection_token)
+            conn.send("Something went wrong! lol".encode(FORMAT))
+    conn.close()
+
+
+def receive_connections(connection_token):
+    listening.listen()
+    while True:
+        conn, addr = listening.accept()
+        thread = threading.Thread(target=receive_msg, args=(conn, addr, connection_token))  # We create a thread for a another user to connect
+        thread.start()
+
+
+# Main part of the program
 def main():
     global client
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -137,28 +182,21 @@ def main():
         try:
             file = open("token.txt", "r+")
             token = file.readline()
-            confirm = send(token)
-            print(confirm)
+            confirm = send(token) # Returns !FALSE_TOKEN or connection token
             if confirm == "!FALSE_TOKEN":
                 file.close()
                 login()
                 break
             else:
                 file.close()
-                while True:
-                    msg = input("Vnesi sporočilo ==> ")
-                    if msg == "q":
-                        send(DISCONNECT_MESSAGE)
-                        print("!DISCONNECTED")
-                        break
-                    else:
-                        send(msg)
+                listen_for_msg = threading.Thread(target=receive_connections, args=(confirm,))  # We create a thread for a client that is trying to connect
+                listen_for_msg.start()
+                send_msg(confirm)
                 break
         except OSError:
             file = open("token.txt", "x")
             file.close()
-            login()
-            break
+
 
 if __name__ == '__main__':
     main()
