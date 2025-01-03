@@ -1,106 +1,70 @@
-#Still a work in progress
-class Encryption:
-    def __init__(self, key):
-        self.len_of_key = len(key)
-        self.key_binary = self.key_to_binary(key)
+def toBits(text) -> list[str]:
+    text_in_binary: list[str] = []
 
-    def show_binary(self):
-        print(self.file_bin)
-
-    def key_to_binary(self, key):
-        l = []
-        for i in key:
-            l.append(str(bin(ord(i))[2:]))
-        return l
-
-    def encryption(self, value):
-        self.value = value
-        self.file_bin = []
-        self.file_bin_e = []
-        self.file_bin_new_e = []
-        self.file_e1 = ""
-        self.file_e = ""
-        for f in self.value:
-            self.file_bin.append(bin(ord(f))[2:])
-        print(value)
-
-        counter = 0
-        for i in self.file_bin:
-            for k in self.key_binary:
-                if counter == 0:
-                    i = bin(int(str(i), 2) + int(str(k), 2))
-                elif counter == 1:
-                    i = bin(int(str(i), 2) + int(str(k), 2))
-            self.file_bin_e.append(i[2:])
-
-        count = 0
-        for x in self.file_bin_e:
-            s = bin(int(str(x), 2) + int(str(self.key_binary[count]), 2))
-            if count == self.len_of_key - 1:
-                count = 0
-            else:
-                count += 1
-            self.file_bin_new_e.append(s[2:])
-        
-        print(len(self.file_bin_new_e))
-        for e in self.file_bin_new_e:
-            self.file_e += str(hex(int(e, 2))).strip("0x")
-
-        print(len(self.file_e))
-        return(self.file_e)
+    for symbol in text:
+        binary: str = bin(ord(symbol))[2:]
+        text_in_binary.append((8-len(binary))*"0" + binary) # Makes all binary strings 8 bits long
     
-    def decryption(self, e_value):
-        self.file_bin_new_d = []
-        self.file_bin_d = []
-        self.file_bin_d1 = []
-        self.file_d = ""
+    return text_in_binary
 
-        print(len(e_value))
-        count = 0
-        temp = ""
-        for i in e_value:
-            if count == 2:
-                count = 0
-                temp += i
-                self.file_bin_d1.append(temp)
-                temp = ""
-            else:
-                temp += i
-                count += 1
 
-        print(self.file_bin_d1)
-        for d in self.file_bin_d1:
-            self.file_bin_new_d.append(bin(int(d, base=16))[2:])
+def encryption(text_in_binary, key_in_binary) -> str:
+    symbol_count = 0
+    len_of_key = len(key_in_binary)
+    encrypted_text: str = ""
 
-        count = 0
-        #print(e_value)
-        #print(self.file_bin_new_d)
-        for x in self.file_bin_new_d:
-            s = bin(int(str(x), 2) - int(str(self.key_binary[count]), 2))
-            if count == self.len_of_key - 1:
-                count = 0
-            else:
-                count += 1
-            self.file_bin_d.append(s[2:])
+    value: int = 0
+    for key_symbol in key_in_binary:
+        value = value + int(key_symbol, 2)
+
+    for symbol in text_in_binary:
+        encrypted_text += hex(int(symbol, 2) + value + int(key_in_binary[symbol_count], 2))[2:]
+
+        symbol_count += 1
+        if symbol_count == len_of_key:
+            symbol_count = 0
         
-        counter = 0
-        for i in self.file_bin_d:
-            for k in self.key_binary:
-                if counter == 0:
-                    i = bin(int(str(i), 2) - int(str(k), 2))
-                elif counter == 1:
-                    i = bin(int(str(i), 2) - int(str(k), 2))
-            self.file_d += str(i[2:])
+    return encrypted_text
 
-        value_d = ""
-        fileb = ""
-        for i in self.file_d:
-            if i != "b":
-                fileb += i
-        self.file_d = fileb
-        for i in range(0, len(self.file_d), 7):
-            temp_data = int(self.file_d[i:i + 7], 2)
-            value_d += chr(temp_data)
+
+def decryption(encrypted_text, key_in_binary) -> str:
+    decrypted_text: str = ""
+    symbol_count = 0
+    len_of_key = len(key_in_binary)
+    index = 0
+
+    value: int = 0
+    for symbol in key_in_binary:
+        value = value + int(symbol, 2)
+    
+    for _ in range(int(len(encrypted_text)/3)):
+        decrypted_text += str(chr(int(encrypted_text[index: index+3], 16) - value - int(key_in_binary[symbol_count], 2)))
+        index += 3
+
+        symbol_count += 1
+        if symbol_count == len_of_key:
+            symbol_count = 0
         
-        return(value_d)
+    return decrypted_text
 
+
+def main() -> None:
+    key = input("Input encryption key\n==> ") # MIN length is 6 and MAX is 30
+    key_in_binary: list[str] = toBits(key)
+    while True:
+        inp = input(f"Do you want to encrypte (e) or decrypte (d)\n==> ")
+        if inp == "e":
+            text = input("Text\n==> ")
+            text_in_binary: list[str] = toBits(text)
+            encrypted_text: str = encryption(text_in_binary, key_in_binary)
+            print(encrypted_text)
+        elif inp == "d":
+            text = input("Encrypted text\n==> ")
+            decrypted_text: str = decryption(text, key_in_binary)
+            print(decrypted_text)
+        else:
+            break
+
+
+if __name__ == "__main__":
+    main()
