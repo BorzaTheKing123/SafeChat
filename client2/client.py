@@ -1,95 +1,48 @@
+# Geslo: 1234
+
 import socket
-from tkinter import *
 import hashlib
 import sys
-
-WIDTH = 1920#window.winfo_screenwidth()
-HEIGHT = 1080#window.winfo_screenmmheight()
-CENTER_WIDTH = WIDTH / 2
-CENTER_HEIGHT = HEIGHT / 2
+import Encryption.AsymmetricEncryption as ae
+from Encryption.Encryption import Encryption
+from pathlib import Path
+from cryptography.hazmat.primitives import serialization
 
 FORMAT = 'utf-8'
 HEADER = 64
 DISCONNECT_MESSAGE = "!DISCONNECT_FROM_SERVER"
 
-CLIENT = socket.gethostbyname(socket.gethostname()) # Gets ip automaticaly. Also here enter your public ip address to make it work outside home network
-listening = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # We create a socket object --> .AF_INET is one of many different types
 
-for port in range(10):
-    CLIENT_PORT = 5070 + port
-    ADDR_CLIENT = (CLIENT, CLIENT_PORT)
-    try:
-        listening.bind(ADDR_CLIENT)
-        break
-    except OSError:
-        continue
-
-
+# Funkcija za registracijo uporabnika
 def register():
-    global window
-    window = Tk()
-    window.title("SafeChat")
-    window.geometry('960x540')
-    window.resizable(False, False)
-    # Destroys all widgets
-    for widgets in window.winfo_children():
-        widgets.destroy()
-
-    Label(window, text="Register", font=("Arial", 30)).place(x=CENTER_WIDTH - 500, y=CENTER_HEIGHT - 400)
-    Label(window, text="Username", font=("Arial", 20)).place(x = CENTER_WIDTH-750, y=CENTER_HEIGHT-300)
-    Label(window, text = "Password", font=("Arial", 20)).place(x=CENTER_WIDTH-750, y=CENTER_HEIGHT-250)
-    Label(window, text="Already have an account?", font=("Arial", 16)).place(x=CENTER_WIDTH - 600, y=CENTER_HEIGHT - 200)
-
-    username_input_area = Entry(window, width = 30, font=("Arial", 20)).grid(row=0, column=0)
-    username_input_area.pack()
-    username_input_area.place(x = CENTER_WIDTH-630, y = CENTER_HEIGHT-300)
-    password_input_area = Entry(window, width = 30, font=("Arial", 20))
-    password_input_area.pack()
-    password_input_area.place(x = CENTER_WIDTH-630, y = CENTER_HEIGHT-250)
-
-    login_button = Button(window, text = "Login", font=("Arial", 16), command=login)
-    login_button.pack()
-    login_button.place(x = CENTER_WIDTH-400, y = CENTER_HEIGHT-200)
-    register_button = Button(window, text = "Register", font=("Arial", 16), command=lambda :
-    (window.destroy(), send_register(username_input_area.get(), password_input_area.get())))
-    register_button.pack()
-    register_button.place(x = CENTER_WIDTH-750, y = CENTER_HEIGHT-200)
+    try:
+        username = input("Username: ")
+        password = input("Password: ")
+        send_register(username, password)
+    except KeyboardInterrupt:
+        send(DISCONNECT_MESSAGE)
+        sys.exit()
 
 
+# Funkcija za prijavo uporabnika
 def login():
-    global window
-    window = Tk()
-    window.title("SafeChat")
-    window.geometry('960x540')
-    window.resizable(False, False)
-    # Destroy all widgets
-    for widgets in window.winfo_children():
-        widgets.destroy()
-
-    Label(window, text="Login", font=("Arial", 30)).place(x=CENTER_WIDTH-500, y=CENTER_HEIGHT-400)
-    Label(window, text="Username", font=("Arial", 20)).place(x=CENTER_WIDTH-750, y=CENTER_HEIGHT-300)
-    Label(window, text="Password", font=("Arial", 20)).place(x=CENTER_WIDTH-750, y=CENTER_HEIGHT-250)
-    Label(window, text="Don't have an account yet?", font=("Arial", 16)).place(x=CENTER_WIDTH-600, y=CENTER_HEIGHT-2)
-
-    username_input_area = Entry(window, width = 30, font=("Arial", 20))
-    username_input_area.pack()
-    username_input_area.place(x = CENTER_WIDTH-630, y = CENTER_HEIGHT-300)
-    password_input_area = Entry(window, width = 30, font=("Arial", 20))
-    password_input_area.pack()
-    password_input_area.place(x = CENTER_WIDTH-630, y = CENTER_HEIGHT-250)
-
-    login_button = Button(window, text = "Login", font=("Arial", 16), command=lambda:
-    (window.destroy(), send_login(username_input_area.get(), password_input_area.get())))
-    login_button.pack()
-    login_button.place(x = CENTER_WIDTH-750, y = CENTER_HEIGHT-200)
-    register_button = Button(window, text = "Register", font=("Arial", 16), command = register)
-    register_button.pack()
-    register_button.place(x = CENTER_WIDTH-400, y = CENTER_HEIGHT-200)
-
-    window.mainloop()
+    try:
+        account = input("Do you have an account? (y/n): ")
+        if account.lower() == "y":
+            username = input("Username: ")
+            password = input("Password: ")
+            send_login(username, password)
+        elif account.lower() == "n":
+            register()
+        else:
+            print("Invalid input!")
+            login()
+    except KeyboardInterrupt:
+        send(DISCONNECT_MESSAGE)
+        sys.exit()
 
 
-# Sends user info and receives new token
+# Pošlje uporabniške podatke in prejme nov token
 def send_login(username, psw):
     if " " in username or " " in psw:
         print("Invalid characters!")
@@ -98,7 +51,7 @@ def send_login(username, psw):
         while True:
             new_token = send(f"{username} {password} 1")
             if new_token != "!INCORRECT_PASSWORD" and new_token != "!FALSE_TOKEN":
-                file = open("token.txt", "w")
+                file = open("token/token.txt", "w")
                 file.write(new_token)
                 file.close()
                 break
@@ -110,6 +63,7 @@ def send_login(username, psw):
         main()
 
 
+# Pošlje uporabniške podatke in prejme token pri registraciji
 def send_register(username, psw):
     if " " in username or " " in psw:
         print("Invalid characters!")
@@ -118,7 +72,7 @@ def send_register(username, psw):
         while True:
             new_token = send(f"{username} {password} 0")
             if new_token != "Username already exists!" and new_token != "Username is too short!":
-                file = open("token.txt", "w")
+                file = open("token/token.txt", "w")
                 file.write(new_token)
                 file.close()
                 main()
@@ -128,40 +82,88 @@ def send_register(username, psw):
                 break
 
 
+#Funkcija za pošiljanje sporočil
 def send_msg():
     print("To REFRESH just press ENTER!")
     try:
         while True:
-            user = input("Komu pošiljaš sporočilo\n--> ")
+            user = input("Destination:\n--> ")
             if user == "":
                 print(send(f"{user} !==>"))
             else:
-                msg = input("==> ")
+                msg = input("Message:\n==> ")
                 print(send(f"{user} !==> {msg}"))
     except KeyboardInterrupt:
         send(DISCONNECT_MESSAGE)
-        sys.exit()
 
 
+# Funkcija za pošiljanje sporočil
 def send(msg):
-    message = msg.encode(FORMAT)
+    server_public_pem_path = Path("keys/server_public_key.pem")
+    server_public_pem_bytes= server_public_pem_path.read_bytes()
+    try:
+        server_public_key = serialization.load_pem_public_key(server_public_pem_bytes)
+    except Exception:
+        return
+
+    if len(msg) > 256:
+        message = msg.encode(FORMAT)
+    else:
+        message = ae.encrypt(msg, server_public_key).encode(FORMAT)
+    
     msg_length = len(message)
     send_length = str(msg_length).encode(FORMAT) # We get length of the message we want to send
     send_length += b' ' * (HEADER - len(send_length))
     client.send(send_length)
     client.send(message)
-    return client.recv(1024).decode(FORMAT)
+
+    if msg == DISCONNECT_MESSAGE:
+        return
+    
+    recv_msg = client.recv(1024).decode(FORMAT)
+    if len(recv_msg) > 450:
+        return recv_msg
+    return ae.decrypt(recv_msg, rprivate_key(se))
 
 
-# Main part of the program
+# Funkcija, ki pošlje javni ključ na strežnik
+def send_public_key():
+    public_pem_bytes = Path("keys/public_key.pem").read_bytes()
+    return send(public_pem_bytes.decode('utf-8'))
+
+
+# Funkcija za branje privatnega ključa
+def rprivate_key(se):
+    private_pem_bytes = se.decryption(Path("keys/privat_key.pem").read_bytes())
+    return serialization.load_pem_private_key(
+        private_pem_bytes,
+        password=None,
+    )
+
+
+# Funkcija za branje javnega ključa
+def server_public_key():
+    public_key_pem_bytes = client.recv(1024)
+    server_public_pem_path = Path("keys/server_public_key.pem")
+    server_public_pem_path.write_bytes(public_key_pem_bytes)
+
+
+# Glavni del programa
 def main():
     global client
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    SERVER = "127.0.0.1" # Specifičen glede na to kje testiraš program
+    SERVER = "192.168.178.33" # Specifičen glede na to kje testiraš program
+
+    # Zahteva geslo in dekodira privaten ključ
+    password = "123456" # Nastavi kasneje za geslo svojega programa input() !!!!
+    global se
+    se = Encryption(password)
+    private_key = rprivate_key(se)
 
     for port in range(10):
         PORT = 5050 + port
         ADDR = (SERVER, PORT)
+
         try:
             client.connect(ADDR)
             break
@@ -169,26 +171,40 @@ def main():
             continue
     else:
         print("Server unavailable!")
+        return
+    
+    # Prejme javni ključ strežnika
+    server_public_key()
+    
+    # Preveri, če je ključ bil sprejet na strežniku
+    if send_public_key() != "!VALID_KEY":
+        send(DISCONNECT_MESSAGE)
+        return
 
-
+    # Zanka skrbi za bolj povezano uporabo programa
     while True:
         try:
-            file = open("token.txt", "r+")
-            token = file.readline()
-            print(token)
-            confirm = send(token) # Vrne !FALSE_TOKEN ali pa potrditev
-            if confirm == "!FALSE_TOKEN":
-                file.close()
-                login()
-                break
-            else:
-                file.close()
-                send_msg()
-                break
-        except OSError:
-            file = open("token.txt", "x")
+            # Branje datoteke token.txt
+            file = open("token/token.txt", "r+")
+            token = se.decryption(file.readline()).decode('utf-8')
             file.close()
 
+            confirm = send(token) # Vrne !FALSE_TOKEN ali pa uporabniško ime
+
+            # Preveri če je uspela povezava z danim tokenom
+            if confirm == "!FALSE_TOKEN":
+                login()
+                break
+            
+            # Če povezava uspe potem gre v glavni del programa
+            print(f"Logined as user: {confirm}")
+            send_msg()
+            break
+        
+        # Če datoteke token.txt ni jo ustvari
+        except OSError:
+            file = open("token/token.txt", "x")
+            file.close()
 
 if __name__ == '__main__':
     main()

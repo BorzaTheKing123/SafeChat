@@ -1,16 +1,11 @@
-import sqlite3
+# Datoteka za testiranje funkcij
 
-def select(command, typ):
-    conn_to_db = sqlite3.connect('server/accounts.db')
-    c = conn_to_db.cursor()
-    c.execute(command)
-    if typ == 1:
-        result = c.fetchone()
-    else:
-        result = c.fetchall()
-    conn_to_db.close()
-    return result
+def main(x):
+    print(x, "Mamma")
+    if x < 3:
+        x+= 1
+        main(x)
+        #return
+    print("After")
 
-
-res = select("SELECT * FROM accounts WHERE username='{}'".format("TheOperator"), 1)
-print(res)
+main(0)
