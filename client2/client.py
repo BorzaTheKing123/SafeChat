@@ -12,6 +12,11 @@ FORMAT = 'utf-8'
 HEADER = 64
 DISCONNECT_MESSAGE = "!DISCONNECT_FROM_SERVER"
 
+# Zahteva geslo in dekodira privaten ključ
+password = "123456" # Nastavi kasneje za geslo svojega programa input() !!!!
+global se
+se = Encryption(password)
+
 
 # Funkcija za registracijo uporabnika
 def register():
@@ -26,60 +31,70 @@ def register():
 
 # Funkcija za prijavo uporabnika
 def login():
-    try:
-        account = input("Do you have an account? (y/n): ")
-        if account.lower() == "y":
-            username = input("Username: ")
-            password = input("Password: ")
-            send_login(username, password)
-        elif account.lower() == "n":
-            register()
-        else:
-            print("Invalid input!")
-            login()
-    except KeyboardInterrupt:
-        send(DISCONNECT_MESSAGE)
-        sys.exit()
+    for _ in range(3):
+        try:
+            account = input("Do you have an account? (y/n): ")
+            if account.lower() == "y":
+                username = input("Username: ")
+                password = input("Password: ")
+                send_login(username, password)
+            elif account.lower() == "n":
+                register()
+            else:
+                print("Invalid input!")
+                login()
+        except KeyboardInterrupt:
+            send(DISCONNECT_MESSAGE)
+            return
 
 
 # Pošlje uporabniške podatke in prejme nov token
 def send_login(username, psw):
+    # Preveri da ni presledkov v imenu ali geslu
     if " " in username or " " in psw:
         print("Invalid characters!")
-    else:
-        password = hashlib.sha512(bytes(psw, "utf-8")).hexdigest()
-        while True:
-            new_token = send(f"{username} {password} 1")
-            if new_token != "!INCORRECT_PASSWORD" and new_token != "!FALSE_TOKEN":
-                file = open("token/token.txt", "w")
-                file.write(new_token)
-                file.close()
-                break
-            elif new_token == "!FALSE_TOKEN":
-                break
-            else: 
-                print(new_token)
-        print("main")
-        main()
+        return
+    
+    password = hashlib.sha512(bytes(psw, "utf-8")).hexdigest() # Vrne hash gesla
+
+    # Preveri, če je prijava uspela
+    new_token = send(f"{username} {password} 1")
+    if new_token != "!INCORRECT_PASSWORD" and new_token != "!FALSE_TOKEN":
+        file = open("token/token.txt", "w")
+        file.write(se.encryption(new_token.encode('utf-8')).decode('utf-8'))
+        file.close()
+    else: 
+        print(new_token)
+        return
+    
+    send(DISCONNECT_MESSAGE)
+    main()
+    quit()
 
 
 # Pošlje uporabniške podatke in prejme token pri registraciji
 def send_register(username, psw):
+     # Preveri da ni presledkov v imenu ali geslu
     if " " in username or " " in psw:
         print("Invalid characters!")
+        return
+    
+    password = hashlib.sha512(bytes(psw, "utf-8")).hexdigest()
+
+    # Preveri, če je registracija uspela
+    new_token = send(f"{username} {password} 0")
+    if new_token != "Username already exists!" and new_token != "Username is too short!":
+        file = open("token/token.txt", "w")
+        file.write(se.encryption(new_token.encode('utf-8')).decode('utf-8'))
+        file.close()
+        main()
     else:
-        password = hashlib.sha512(bytes(psw, "utf-8")).hexdigest()
-        while True:
-            new_token = send(f"{username} {password} 0")
-            if new_token != "Username already exists!" and new_token != "Username is too short!":
-                file = open("token/token.txt", "w")
-                file.write(new_token)
-                file.close()
-                main()
-                break
-            else:
-                print(new_token)
-                break
+        print(new_token)
+        return
+    
+    send(DISCONNECT_MESSAGE)
+    main()
+    quit()
 
 
 #Funkcija za pošiljanje sporočil
@@ -121,9 +136,11 @@ def send(msg):
         return
     
     recv_msg = client.recv(1024).decode(FORMAT)
-    if len(recv_msg) > 450:
+    try:
+        return ae.decrypt(recv_msg, rprivate_key(se))
+    except Exception:
         return recv_msg
-    return ae.decrypt(recv_msg, rprivate_key(se))
+    
 
 
 # Funkcija, ki pošlje javni ključ na strežnik
@@ -154,16 +171,10 @@ def main():
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     SERVER = "192.168.178.33" # Specifičen glede na to kje testiraš program
 
-    # Zahteva geslo in dekodira privaten ključ
-    password = "123456" # Nastavi kasneje za geslo svojega programa input() !!!!
-    global se
-    se = Encryption(password)
-    private_key = rprivate_key(se)
-
+    # Poskusi se povezati na večih vhodih
     for port in range(10):
         PORT = 5050 + port
         ADDR = (SERVER, PORT)
-
         try:
             client.connect(ADDR)
             break
@@ -194,12 +205,12 @@ def main():
             # Preveri če je uspela povezava z danim tokenom
             if confirm == "!FALSE_TOKEN":
                 login()
-                break
+                return
             
             # Če povezava uspe potem gre v glavni del programa
             print(f"Logined as user: {confirm}")
             send_msg()
-            break
+            return
         
         # Če datoteke token.txt ni jo ustvari
         except OSError:

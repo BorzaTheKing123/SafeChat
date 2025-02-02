@@ -50,15 +50,17 @@ def send(message, conn, public_key):
 def login(username, password):
     psw = db.select("SELECT password FROM accounts WHERE username='{}'".format(username), 1)
     password = f"('{password}',)"
-    print(username, password, psw)
+    print(username, password, str(psw))
     if password == str(psw):
-        return create_token()
+        token = create_token()
+        db.update("UPDATE accounts SET token='{}' WHERE username='{}'".format(token, username))
+        return token
     else:
         return "!INCORRECT_PASSWORD"
 
 
 # Registracija uporabnika
-def register(username, password):
+def register(username, password, addr):
     usr = db.select("SELECT username FROM accounts WHERE username='{}'".format(username), 1)
     if usr is not None:
         return False, "Username already exists!"
@@ -66,7 +68,8 @@ def register(username, password):
         return False, "Username is too short!"
     else:
         new_token = create_token()
-        db.insert("INSERT INTO accounts VALUES ('{}', '{}', '{}')".format(username, password, new_token))
+        print(type(addr), addr[0])
+        db.insert("INSERT INTO accounts VALUES ('{}', '{}', '{}', '{}')".format(username, password, new_token, addr[0]))
         return True, new_token
 
 
@@ -87,11 +90,10 @@ def receive(conn) -> str:
         rec = conn.recv(msg_length).decode(FORMAT)  # Pridobi sporočilo
         private_key = r_private_key()
 
-
-        if msg_length > 450:
-            return rec
-        else:
+        try:
             return ae.decrypt(rec, private_key)
+        except Exception:
+            return rec
 
 
 # Ko je uporabnik povezan mu omogoča pošiljanje sporočil
@@ -181,16 +183,16 @@ def handle_client(conn, addr) -> None:
             login_attempt = login(username, password)
             if login_attempt == "!INCORRECT_PASSWORD":
                 count += 1
-            conn.send(f"{login_attempt}".encode(FORMAT))
+            send(f"{login_attempt}", conn, public_key)
         
         # Registracija uporabnika
         else:
-            status, register_attempt = register(username, password)
+            status, register_attempt = register(username, password, addr)
             if not status:
                 count += 1
-            conn.send(f"{register_attempt}".encode(FORMAT))
+            send(f"{register_attempt}", conn, public_key)
     else:
-        conn.send(DISCONNECT_MESSAGE.format(FORMAT))
+        send(DISCONNECT_MESSAGE, conn, public_key)
     
     print(f"Connection from: {addr} FAILED")
     conn.close()  # Zapre povezavo
