@@ -20,12 +20,3 @@ def update(query) -> None:
     c.execute(query)
     conn_to_db.commit()
     conn_to_db.close()
-
-
-# Vstavimo stvari v bazo
-def insert(query) -> None:
-    conn_to_db = sqlite3.connect('server/Database/accounts.db')
-    c = conn_to_db.cursor()
-    c.execute(query)
-    conn_to_db.commit()
-    conn_to_db.close()

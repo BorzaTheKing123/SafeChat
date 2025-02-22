@@ -31,6 +31,7 @@ def decrypt(message_encrypted, private_key):
         return "Failed to Decrypt"
 
 
+# Namenjeno samo za testiranje
 def main():
     es = e.Encryption("123456")
 

@@ -36,8 +36,8 @@ def main():
     )
 
     # Določanje poti do PEM datotek
-    privat_key_pem_path = Path("server/keys/privat_key.pem")
-    public_key_pem_path = Path("server/keys/public_key.pem")
+    privat_key_pem_path = Path("client2/keys/privat_key.pem")
+    public_key_pem_path = Path("client2/keys/public_key.pem")
 
     # Zapisovanje ključev
     privat_key_pem_path.write_bytes(privat_key_pem_bytes)

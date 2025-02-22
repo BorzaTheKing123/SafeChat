@@ -1,7 +1,5 @@
 # Zaženi strežnik znotraj mape server drugače bodo poti do datotek malce uničene
 
-# Naredi da bo delala asimetrična enkripcija
-
 import Database.DatabaseRequests as db
 import socket
 import threading
@@ -10,11 +8,16 @@ import Encryption.AsymmetricEncryption as ae # Asimetrična enkripcija
 from cryptography.hazmat.primitives import serialization
 from pathlib import Path
 from Encryption.Encryption import Encryption
+import hashlib
+
+password = input("Vnesi geslo (Testno geslo je: 123456): ")
+se = Encryption(password)
 
 HEADER = 64  # Velikost sporočila, ki pove kako veliko bo sporočilo
 FORMAT = 'utf-8'
 
-SERVER = socket.gethostbyname(socket.gethostname())  # Pridobi ip naslov avtomatično
+# Trenutno delal lokalno, vendar to ne spremeni delovanja
+SERVER = "127.0.0.1" # Uporabi to funkcijo, da dobiš ip avtomatsko -> socket.gethostbyname(socket.gethostname())
 DISCONNECT_MESSAGE = "!DISCONNECT_FROM_SERVER"
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # Ustvarimo socket objekt
@@ -26,8 +29,12 @@ def create_token():
     char = "ABCDEFGHIJKLMNOPRSTUVZXYWQqwertyuiopasdfghjklzxcvbnm!#$%&()=?/+*-_{}[]|1234567890<>"
     while True:
         new_token = ""
-        for _ in range(30):
+
+        # Ustvari token dolžine 64
+        for _ in range(64):
             new_token += random.choice(char)
+        
+        # Preveri da tokena ni že v bazi
         check_token = db.select("SELECT * FROM accounts WHERE token='{}'".format(new_token), 1)
         if check_token is None:
             return new_token
@@ -50,27 +57,30 @@ def send(message, conn, public_key):
 def login(username, password):
     psw = db.select("SELECT password FROM accounts WHERE username='{}'".format(username), 1)
     password = f"('{password}',)"
-    print(username, password, str(psw))
+
+    # Če se geslo ujema ustavri nov token za povezavo
     if password == str(psw):
         token = create_token()
-        db.update("UPDATE accounts SET token='{}' WHERE username='{}'".format(token, username))
+        db.update("UPDATE accounts SET token='{}' WHERE username='{}'".format(hashlib.sha512(bytes(token, FORMAT)).hexdigest(), username))
         return token
-    else:
-        return "!INCORRECT_PASSWORD"
+    
+    return "!INCORRECT_PASSWORD"
 
 
 # Registracija uporabnika
 def register(username, password, addr):
     usr = db.select("SELECT username FROM accounts WHERE username='{}'".format(username), 1)
+
+    # Preveri da uporbaniško ime ne obstaja že in da ustreza zahtevam
     if usr is not None:
-        return False, "Username already exists!"
-    elif len(username) < 1:
-        return False, "Username is too short!"
-    else:
-        new_token = create_token()
-        print(type(addr), addr[0])
-        db.insert("INSERT INTO accounts VALUES ('{}', '{}', '{}', '{}')".format(username, password, new_token, addr[0]))
-        return True, new_token
+        return False, "Uporabniško ime že obstaja!"
+    elif len(username) < 4:
+        return False, "Uporabniško ime je prekratko! (vsaj 4 znaki brez presledkov)"
+    
+    # Ustvari nov uporabiški račun
+    new_token = create_token()
+    db.update("INSERT INTO accounts VALUES ('{}', '{}', '{}', '{}')".format(username, password, hashlib.sha512(bytes(new_token, FORMAT)).hexdigest(), addr[0]))
+    return True, new_token
 
 
 # Funkcija za branje privatnega ključa
@@ -83,13 +93,14 @@ def r_private_key():
 
 
 # Sprejme sporočilo
-def receive(conn) -> str:
+def recv(conn) -> str:
     msg_length = conn.recv(HEADER).decode(FORMAT)  # Pridobi dolžino sporočila
     if msg_length:
         msg_length = int(msg_length)
         rec = conn.recv(msg_length).decode(FORMAT)  # Pridobi sporočilo
         private_key = r_private_key()
 
+        # Poskuša dekripirati sporočilo razen če je predolgo
         try:
             return ae.decrypt(rec, private_key)
         except Exception:
@@ -99,39 +110,52 @@ def receive(conn) -> str:
 # Ko je uporabnik povezan mu omogoča pošiljanje sporočil
 def send_msg(sender_conn, sender_username, public_key):
     while True:
-        rec = receive(sender_conn)
+        rec = recv(sender_conn)
         print(f"{sender_username}: {rec}")
 
-        if rec is None or rec == DISCONNECT_MESSAGE:
+        # Če prejme sporočilo za prekinjanje povezave konča povezavo
+        if rec is None or DISCONNECT_MESSAGE in rec:
             active_connections.pop(sender_username)
             return
-        
+
+        # Ujame napake
         try:
             user, msg = rec.split(" !==> ")
         except ValueError:
-            send("->", sender_conn, public_key)
+            send(rec, sender_conn, public_key)
             continue
-
-        if msg == DISCONNECT_MESSAGE:
-            active_connections.pop(sender_username)
-            return
         
+        # Če poskuša uporabnik poslati sporočilo samemu sebi
+        if user == sender_username:
+            send("Ej, ne pošiljaj sporočil samemu sebi!", sender_conn, public_key)
+            continue
+        
+        # Preveri če je vneseno pravilno uporabniško ime
         if " " in user:
-            send("Incorrect username!", sender_conn, public_key)
+            send("Napačno uporabniško ime!", sender_conn, public_key)
             continue
         
-        conn, conn_public_key = get_target_info(user)
+        # Pridobi informacije o naslovniku
+        get_target = get_target_info(user)
+        if type(get_target) != list:
+            send("Uporabnik ne obstaja ali pa ni povezan!", sender_conn, public_key)
+            continue
+        
+        # Ta del sestavi sporočilo
+        conn, conn_public_key = get_target
         ms = f"{sender_username} !==> {msg}"
         
+        # Dodatno preveri, povezava obstaja
         if conn is None:
-            send("User is unavaliable!", sender_conn, public_key)
+            send("Uporabnik ni na voljo!", sender_conn, public_key)
             continue
         
+        # Pošlje sporočilo razen če je uporabnik nedostopen
         try:
             send(ms, conn, conn_public_key)
-            send("Message sent!", sender_conn, public_key)
+            send("Poslano!", sender_conn, public_key)
         except OSError:
-            send("User is unavaliable!", sender_conn, public_key)
+            send("Uporabnik ni na voljo!", sender_conn, public_key)
             active_connections.pop(user)
 
 
@@ -148,8 +172,9 @@ def handle_client(conn, addr) -> None:
     send_public_key(conn)
 
     # Preveri če je format javnega ključa pravilen
-    public_pem_bytes = receive(conn).encode('utf-8')
+    public_pem_bytes = recv(conn).encode(FORMAT)
     
+    # naloži javni ključ uporabnika
     try:
         public_key = serialization.load_pem_public_key(public_pem_bytes)
     except Exception:
@@ -158,7 +183,7 @@ def handle_client(conn, addr) -> None:
     send("!VALID_KEY", conn, public_key)
 
     # Prejme token in preveri če je pravilen
-    token = receive(conn)
+    token = hashlib.sha512(bytes(recv(conn), FORMAT)).hexdigest()
     rec = db.select("SELECT username FROM accounts WHERE token='{}'".format(token), 1)
     if rec is not None:
         active_connections[rec[0]] = [conn, public_key] # Doda novo povezavo
@@ -174,7 +199,7 @@ def handle_client(conn, addr) -> None:
     # Skrbi za prijavo in registracijo
     while count < 3:
         try:
-            username, password, log_or_reg = receive(conn).split(" ")
+            username, password, log_or_reg = recv(conn).split(" ")
         except Exception:
             break
 
@@ -200,13 +225,11 @@ def handle_client(conn, addr) -> None:
 
 # Posluša, če se hoče kdo povezati
 def start() -> None:
-    password = "123456" # !!!!NAredi input
-    global se
-    se = Encryption(password)
-
+    # Zažene strežnik
     server.listen()
     print(f"Server is listening on {SERVER}")
 
+    # Sprejema povezave in jih daje v podprocese
     while True:
         conn, addr = server.accept()  # Sprejme povezave, ki se hočejo povezati (addr --> ip adress, conn --> objekt)
         thread = threading.Thread(target=handle_client, args=(conn, addr))  # Ustvarimo thread, da lahko sprejmemo več povezav hkrati

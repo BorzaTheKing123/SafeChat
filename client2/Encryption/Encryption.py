@@ -58,7 +58,7 @@ class Encryption:
             symbol_count += 1
             if symbol_count == len_of_key:
                 symbol_count = 0
-            
+      
         return decrypted_text.encode('utf-8')
 
 
