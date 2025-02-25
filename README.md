@@ -57,3 +57,5 @@ Nato pa zaženemo drugega uporabnika in sledimo navodilom.
 ```
 python client2/client.py
 ```
+
+###### P.S.: Rad imam Tjašo

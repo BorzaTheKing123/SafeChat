@@ -27,8 +27,8 @@ messages = []
 # Funkcija za registracijo uporabnika
 def register():
     try:
-        username = input("Username: ")
-        password = input("Password: ")
+        username = input("Ime: ")
+        password = input("Geslo: ")
         send_register(username, password)
     except KeyboardInterrupt:
         send(DISCONNECT_MESSAGE, False)
@@ -40,15 +40,15 @@ def login():
     # 3 poskusi za prijavo
     for _ in range(3):
         try:
-            account = input("Do you have an account? (y/n): ")
+            account = input("Ali imate račun (n za ustvaritev novega računa)? (y/n): ")
             if account.lower() == "y":
-                username = input("Username: ")
-                password = input("Password: ")
+                username = input("Ime: ")
+                password = input("Geslo: ")
                 send_login(username, password) # Pošlje ime in geslo
             elif account.lower() == "n":
                 register()
             else:
-                print("Invalid input!")
+                print("Neveljaven vnos!")
                 login()
         except KeyboardInterrupt: # V primeru ctrl-c program pošlje DISCONNECT_MESSAGE in se konča
             send(DISCONNECT_MESSAGE, False)
@@ -123,7 +123,7 @@ def send_msg():
     thread = threading.Thread(target=rec, args=(True,))  # Ustvarimo ločen proces, da lahko sprejmemo več povezav hkrati
     thread.start()
 
-    print("To REFRESH just press ENTER!")
+    print("Za osvežitev pritisnite ENTER!")
     try:
         while True:
             user = input("\nNaslovnik:\n--> ")

@@ -50,6 +50,10 @@ def get_target_info(user):
 
 # Funkcija za pošiljanje sporočil
 def send(message, conn, public_key):
+     # Če je dolžina sporočila daljša od 256. ga ne enkriptira
+     if len(message) > 256:
+         conn.send(message.encode(FORMAT))
+         return
      conn.send(ae.encrypt(message, public_key).encode(FORMAT))
 
 
